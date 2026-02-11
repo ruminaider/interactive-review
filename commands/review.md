@@ -1,6 +1,6 @@
 ---
 description: "Interactive PR review with parallel agent sweep, self-verification, and triage loop"
-argument-hint: "[PR-number-or-URL]"
+argument-hint: "[PR-number-or-URL] [using <reviewer-name>]"
 allowed-tools: ["Bash", "Read", "Grep", "Glob", "Task", "AskUserQuestion", "ToolSearch"]
 ---
 
@@ -13,7 +13,15 @@ You are running the interactive-review command. This implements a structured PR 
 
 ## Phase 1: Determine Review Mode
 
-Parse `$ARGUMENTS` to determine the review mode:
+Parse `$ARGUMENTS` to determine the review mode and reviewer preferences:
+
+### Reviewer Preferences
+Before determining mode, scan `$ARGUMENTS` for reviewer specifications. Look for patterns like:
+- "using the <name> reviewer" or "with the <name> reviewer"
+- "using <name>" where name matches a known agent pattern (e.g., "ghostmonk", "kieran", "security-sentinel")
+- Any agent name mentioned explicitly by the user
+
+Extract these as `requested_reviewers` — a list of reviewer names/patterns the user wants included. These will be forwarded to the review-compiler so it can skip interactive selection and use the specified reviewers directly.
 
 ### PR Mode
 If `$ARGUMENTS` contains a number (e.g., `3780`) or a GitHub PR URL:
@@ -41,6 +49,7 @@ Pass it the following prompt based on the mode:
 Review PR #<number> in the current repository.
 - Mode: PR
 - PR number: <number>
+- Requested reviewers: <comma-separated list, or "none" if no preference>
 Gather the diff, discover available review agents, dispatch them in parallel, and compile deduplicated findings.
 ```
 
@@ -48,8 +57,11 @@ Gather the diff, discover available review agents, dispatch them in parallel, an
 ```
 Review the current branch changes against main.
 - Mode: Local
+- Requested reviewers: <comma-separated list, or "none" if no preference>
 Gather the diff using git diff main...HEAD, discover available review agents, dispatch them in parallel, and compile deduplicated findings.
 ```
+
+When `requested_reviewers` is populated, include them in the prompt so the review-compiler knows to use those specific reviewers instead of asking interactively.
 
 Wait for the review-compiler to return structured findings.
 
@@ -72,27 +84,40 @@ Process each finding in the order returned by review-compiler (severity-sorted: 
 
 ### For EACH Finding, Perform These Steps in Order:
 
-#### Step 1: Self-Verify (MANDATORY — DO NOT SKIP)
+#### Step 1: Independent Verification via Subagent (MANDATORY — DO NOT SKIP)
 
-This is the most important step. You MUST verify every single finding against the actual source code before presenting it to the user.
+This is the most important step. Each finding MUST be independently verified by a fresh subagent before being presented to the user. Do NOT verify findings yourself — delegate to a subagent to avoid confirmation bias.
 
-**For every finding:**
-1. Use the Read tool to read the actual source file at the referenced lines (include ~10 lines of surrounding context)
-2. Check: Does the code actually have the issue described?
+**Parallel launch (start of Phase 3):**
+At the beginning of the triage loop, launch ALL verification subagents in parallel using multiple Task tool calls in a single message. Use `subagent_type: "general-purpose"` with `model: "haiku"` for each. Run them in the background (`run_in_background: true`) so they execute concurrently.
 
-**For findings involving types, contracts, or API shapes:**
-3. Use Grep to find the relevant serializer, model, or type definition
-4. Verify the finding's claim about the contract matches reality
+Each verification subagent receives this prompt:
+```
+Verify this code review finding against the CURRENT state of the source code.
 
-**For findings involving visual/design concerns:**
-5. Use ToolSearch to check if Figma tools are available (query: "figma")
-6. If Figma tools exist, cross-reference the design
-7. If no Figma tools, note "Unable to verify against design" in verification
+FINDING:
+- File: <file_path>
+- Lines: <line_range>
+- Summary: <summary>
+- Detail: <detail>
+- Category: <category>
 
-**Classify the finding:**
-- **CONFIRMED**: The code clearly has the issue described. The finding is accurate.
-- **REVISED**: The finding has merit but the details need correction (e.g., wrong line number, partially correct analysis). Update the finding details.
-- **RETRACTED**: The finding is a false positive. The code is actually correct, or the agent misread the context. Explain WHY it's a false positive.
+INSTRUCTIONS:
+1. Read the file at the specified lines (include ~10 lines of surrounding context)
+2. For type/contract/API claims: Grep for the relevant definition and verify the claim
+3. For visual/design concerns: note "Unable to verify against design" unless Figma tools are available
+4. Determine if the finding is accurate as of the CURRENT code
+
+RESPOND WITH EXACTLY ONE OF:
+- CONFIRMED: <explanation of why the finding is accurate>
+- REVISED: <what needs correction about the finding, plus updated details>
+- RETRACTED: <why this is a false positive — what the code actually does>
+```
+
+**Sequential consumption (during triage):**
+Before presenting each finding, read the corresponding verification subagent's output. Use its verdict (CONFIRMED/REVISED/RETRACTED) and explanation in the finding presentation. If a verification subagent hasn't finished yet, wait for it.
+
+**If a verification subagent fails:** Fall back to reading the source code yourself for that finding only, and note "Verification subagent failed — verified manually" in the presentation.
 
 #### Step 2: Present to User
 
@@ -110,9 +135,9 @@ Display the finding in this format:
 **Detail:**
 <full explanation>
 
-**Self-Verification:** <CONFIRMED|REVISED|RETRACTED>
-<verification explanation — what you found when you re-read the code>
-<for RETRACTED: explain exactly why this is a false positive>
+**Independent Verification:** <CONFIRMED|REVISED|RETRACTED>
+<subagent's verification explanation — what it found when reading the current code>
+<for RETRACTED: the subagent's explanation of why this is a false positive>
 
 **Proposed Comment:**
 > <soft-toned review comment text — only for CONFIRMED/REVISED>
@@ -239,9 +264,9 @@ These rules are hard constraints. Violating any of them is a bug in the review p
 
 1. **NEVER post a comment without showing the draft to the user first.** Every comment goes through the present → decide → execute flow. No exceptions.
 
-2. **ALWAYS re-read actual source code before presenting a finding.** The self-verification step is mandatory for every single finding. No shortcuts, no batching, no "the agent already read it."
+2. **ALWAYS verify via subagent before presenting a finding.** Launch a verification subagent for every single finding. Do NOT verify findings yourself — you are biased by having received the finding. No shortcuts, no batching, no "I already read it."
 
-3. **Explicitly call out false positives.** When self-verification reveals a finding is wrong, say so clearly with an explanation. This builds trust in the review process.
+3. **Explicitly call out false positives.** When verification reveals a finding is wrong, say so clearly with the subagent's explanation. This builds trust in the review process.
 
 4. **For local diffs, skip the comment-posting flow entirely.** No `gh api` calls, no "Post" option. Local mode is review-only.
 

@@ -84,8 +84,15 @@ Based on the changed file types, recommend a default selection:
 - If fewer than 5 files changed → skip architecture-level agents
 - Always include: code-reviewer, silent-failure-hunter, security-sentinel
 
-### User Selection
-Present the grouped agent list to the user via AskUserQuestion with multiSelect enabled. Show:
+### Pre-specified Reviewers
+If the prompt includes a `Requested reviewers` field with specific reviewer names (not "none"):
+1. Match each requested name against discovered agents using fuzzy matching (e.g., "ghostmonk" matches `evvy-platform-tools:ghostmonk-reviewer`, "kieran" matches `compound-engineering-refined:review:kieran-typescript-reviewer`)
+2. Use the matched agents as the selection — do NOT present an interactive AskUserQuestion
+3. Still include the "always include" defaults (code-reviewer, silent-failure-hunter, security-sentinel) alongside the requested reviewers
+4. If a requested name doesn't match any discovered agent, report: "Could not find reviewer matching '<name>' — skipping"
+
+### User Selection (No Pre-specified Reviewers)
+If no reviewers were pre-specified (field is "none" or absent), present the grouped agent list to the user via AskUserQuestion with multiSelect enabled. Show:
 - Agent name and one-line description
 - Which are recommended (mark with "(Recommended)")
 - Group headers by plugin
