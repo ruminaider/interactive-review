@@ -1,0 +1,13 @@
+{
+  "name": "interactive-review",
+  "version": "0.1.0",
+  "description": "Interactive PR review with parallel agent sweep, self-verification, and draft-preview-post triage loop. 1 agent, 1 command.",
+  "author": {
+    "name": "Albert Gwo",
+    "email": "albertgwo@gmail.com"
+  },
+  "homepage": "https://github.com/ruminaider/interactive-review",
+  "repository": "https://github.com/ruminaider/interactive-review",
+  "license": "MIT",
+  "keywords": ["code-review", "pr-review", "interactive", "multi-agent", "triage"]
+}

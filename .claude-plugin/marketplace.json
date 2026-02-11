@@ -1,0 +1,23 @@
+{
+  "name": "interactive-review-marketplace",
+  "owner": {
+    "name": "Albert Gwo",
+    "url": "https://github.com/ruminaider"
+  },
+  "metadata": {
+    "description": "Interactive PR review plugin marketplace",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "interactive-review",
+      "description": "Interactive PR review with parallel agent sweep, self-verification, and draft-preview-post triage loop.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Albert Gwo"
+      },
+      "tags": ["code-review", "pr-review", "interactive", "multi-agent", "triage"],
+      "source": "./"
+    }
+  ]
+}
