@@ -82,13 +82,14 @@ Based on the changed file types, recommend a default selection:
 - TypeScript-only changes → skip Python-specific reviewers
 - Database migrations present → include data-integrity and migration agents
 - If fewer than 5 files changed → skip architecture-level agents
-- Always include: code-reviewer, silent-failure-hunter, security-sentinel
+- Always include (core): code-reviewer, silent-failure-hunter, security-sentinel
+- Always include if available (preferred): ghostmonk-reviewer — this agent is from the `evvy-platform-tools` plugin and may not be installed. During agent discovery (Phase 2), check if it exists in the available subagent types. If found, include it in every review. If not found, skip it silently — do NOT error or warn.
 
 ### Pre-specified Reviewers
 If the prompt includes a `Requested reviewers` field with specific reviewer names (not "none"):
 1. Match each requested name against discovered agents using fuzzy matching (e.g., "ghostmonk" matches `evvy-platform-tools:ghostmonk-reviewer`, "kieran" matches `compound-engineering-refined:review:kieran-typescript-reviewer`)
 2. Use the matched agents as the selection — do NOT present an interactive AskUserQuestion
-3. Still include the "always include" defaults (code-reviewer, silent-failure-hunter, security-sentinel) alongside the requested reviewers
+3. Still include the core "always include" defaults (code-reviewer, silent-failure-hunter, security-sentinel) and any available preferred agents (ghostmonk-reviewer) alongside the requested reviewers
 4. If a requested name doesn't match any discovered agent, report: "Could not find reviewer matching '<name>' — skipping"
 
 ### User Selection (No Pre-specified Reviewers)

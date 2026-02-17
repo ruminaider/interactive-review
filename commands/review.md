@@ -141,6 +141,7 @@ Display the finding in this format:
 
 **Proposed Comment:**
 > <soft-toned review comment text — only for CONFIRMED/REVISED>
+> <if the finding includes a suggested_fix, append a GitHub code suggestion block — see below>
 
 **Recommendation:** <Comment|Skip>
 ---
@@ -177,6 +178,18 @@ gh api repos/{owner}/{repo}/pulls/{number}/comments \
   -f path="<file_path>" \
   -F line=<end_line> \
   -f side="RIGHT"
+```
+
+For multi-line comments (when using code suggestions that span multiple lines), include the `start_line` parameter:
+```bash
+gh api repos/{owner}/{repo}/pulls/{number}/comments \
+  -f body="<comment text with suggestion block>" \
+  -f commit_id="$(gh pr view <number> --json headRefOid -q .headRefOid)" \
+  -f path="<file_path>" \
+  -F start_line=<start_line> \
+  -F line=<end_line> \
+  -f side="RIGHT" \
+  -f start_side="RIGHT"
 ```
 
 Confirm the comment was posted successfully. If posting fails, report the error and offer to retry or skip.
@@ -257,6 +270,50 @@ All proposed review comments MUST follow these tone rules:
 5. **Acknowledge uncertainty:**
    - "I may be missing context, but it looks like..."
    - "Unless there's a reason I'm not seeing..."
+
+## GitHub Code Suggestions (MANDATORY for actionable findings)
+
+When a finding includes a `suggested_fix` or proposes a concrete code change, the proposed comment MUST include a GitHub code suggestion block. This lets the PR author apply the change with one click.
+
+### Format
+
+Append a triple-backtick `suggestion` block to the comment body:
+
+````
+<explanation of the issue>
+
+```suggestion
+<replacement code — this replaces the lines covered by start_line..line>
+```
+````
+
+### Rules
+
+1. **The suggestion block replaces the lines from `start_line` to `line` in the GitHub API call.** The content inside the suggestion block is the replacement code. Make sure the line range in the API call exactly matches the lines being replaced.
+
+2. **Read the exact current code first.** Before constructing the suggestion, use the Read tool to get the precise current content of the lines being replaced. The suggestion must match the file's exact indentation, whitespace, and surrounding context.
+
+3. **Only include the changed lines.** The suggestion block should contain the minimal replacement — just the lines that change, with their correct indentation. Do NOT include unchanged surrounding context lines inside the suggestion block.
+
+4. **When the finding is purely observational** (e.g., "this might cause issues in edge case X" with no concrete fix), do NOT force a code suggestion. Only include suggestions when there's a clear, specific code change to propose.
+
+5. **When presenting to the user**, show the proposed comment with the suggestion block so they can see exactly what will be posted. The user can edit or remove the suggestion before posting.
+
+### Example
+
+For a finding that suggests changing `has_bv_subtype` to reuse `bv_subtype`:
+
+```
+`has_bv_subtype` issues an independent `.exists()` query, but `bv_subtype` already fetches the same data. Could it reuse `bv_subtype` instead?
+
+\`\`\`suggestion
+    def has_bv_subtype(self):
+        """Returns whether a BV subtype diagnosis exists."""
+        return self.bv_subtype is not None
+\`\`\`
+```
+
+With the API call using `start_line` and `line` to cover the original 3 lines of the property definition.
 
 ## Behavioral Rules (NON-NEGOTIABLE)
 
