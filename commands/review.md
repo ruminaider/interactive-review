@@ -106,7 +106,12 @@ INSTRUCTIONS:
 1. Read the file at the specified lines (include ~10 lines of surrounding context)
 2. For type/contract/API claims: Grep for the relevant definition and verify the claim
 3. For visual/design concerns: note "Unable to verify against design" unless Figma tools are available
-4. Determine if the finding is accurate as of the CURRENT code
+4. For findings whose validity depends on runtime or production state (e.g., "does this DB record/slug/config exist?", "is this seeded in production?", "does this external dependency exist at runtime?"):
+   a. Use ToolSearch to find available database query tools (query: "database query postgres")
+   b. If tools exist, query the production database to verify the claim directly
+   c. If no database tools are available, note "Unable to verify against production data — finding assumes the record/config does not exist"
+   d. When the finding's severity hinges entirely on whether external state exists, you MUST attempt this check before classifying. Do not leave it as an open question.
+5. Determine if the finding is accurate as of the CURRENT code
 
 RESPOND WITH EXACTLY ONE OF:
 - CONFIRMED: <explanation of why the finding is accurate>
