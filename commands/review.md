@@ -172,6 +172,36 @@ For Local mode (no posting):
 - **Skip** — Move to next finding
 - **Skip All Remaining** — End triage early, proceed to summary
 
+#### Step 3.5: Validate User Response (MANDATORY — DO NOT SKIP)
+
+After every AskUserQuestion call in the triage loop, you MUST validate the response before acting on it. This prevents runaway posting when user interaction is bypassed (e.g., auto-approve mode, permission bypass).
+
+**How to validate:**
+1. Check the AskUserQuestion result text for a recognized option label
+2. The ONLY valid option labels are: `"Post"`, `"Edit"`, `"Skip"`, `"Skip All Remaining"`, `"Acknowledge"`
+3. The response must contain one of these exact strings as the selected value
+
+**Invalid response indicators (auto-resolved / bypassed):**
+- The selected value is empty (e.g., `"question text"=""`)
+- The response text is just `"User has answered your questions: ."` with no option
+- No recognizable option label appears anywhere in the response
+- The response arrived suspiciously fast with no meaningful content
+
+**On invalid response — HARD HALT:**
+```
+HALT: AskUserQuestion returned without recognizable user interaction.
+The interactive review cannot continue without real user input.
+This may indicate auto-approve mode or a permission bypass.
+
+No further comments will be posted.
+Findings processed so far: <N>/<total>
+Comments posted before halt: <N>
+
+To resume, re-run /review with interactive permissions enabled.
+```
+
+Stop processing findings entirely. Do not fall through to the next finding. Do not post any comment. Do not continue the triage loop. The review is over.
+
 #### Step 4: Execute Decision
 
 **Post (PR mode only):**
@@ -337,3 +367,5 @@ These rules are hard constraints. Violating any of them is a bug in the review p
 6. **If review-compiler fails, report the error and offer retry.** Don't silently proceed with zero findings.
 
 7. **Respect "Skip All Remaining."** When the user says stop, stop. Don't continue processing findings.
+
+8. **ALWAYS validate AskUserQuestion responses before acting.** After every AskUserQuestion call in the triage loop, confirm the response contains a recognized option label ("Post", "Edit", "Skip", "Skip All Remaining", "Acknowledge"). If the response is empty, unrecognized, or appears auto-resolved, HALT the entire review immediately. Do not post, do not continue to the next finding, do not proceed. This prevents runaway posting when user interaction is bypassed.
