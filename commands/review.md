@@ -1,7 +1,7 @@
 ---
 description: "Interactive PR review with parallel agent sweep, self-verification, and triage loop"
 argument-hint: "[PR-number-or-URL] [using <reviewer-name>]"
-allowed-tools: ["Bash", "Read", "Grep", "Glob", "Task", "AskUserQuestion", "ToolSearch"]
+allowed-tools: ["Bash", "Read", "Grep", "Glob", "Task", "ToolSearch"]
 ---
 
 # Interactive Review Command
