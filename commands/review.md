@@ -39,6 +39,71 @@ If `$ARGUMENTS` is empty, "local", or doesn't match a PR pattern:
 
 Announce which mode was detected before proceeding.
 
+## Phase 2: PR Intent Explanation
+
+After mode detection, ask the user whether they'd like to understand the PR's intent before the review sweep begins.
+
+Use AskUserQuestion:
+- Question: "Before launching the review sweep, would you like to understand the PR's intent?"
+- Options:
+  - **Quick summary** — "High-level summary of what this PR does (2-3 paragraphs)"
+  - **Detailed analysis** — "Full analysis: what, why, soundness review, and questions for the author"
+  - **Skip — proceed to review** — "I already understand the PR, start the review sweep"
+
+### If Quick or Detailed selected
+
+Launch the `interactive-review:intent-explainer` agent via the Task tool.
+
+Pass it the following prompt based on the mode:
+
+#### PR Mode Prompt
+```
+Explain the intent of PR #<number> in the current repository.
+- Mode: PR
+- PR number: <number>
+- Depth: <"quick" or "detailed">
+Read the full diff, PR metadata, and commit messages. Produce a plain-English explanation.
+```
+
+#### Local Mode Prompt
+```
+Explain the intent of the current branch changes against main.
+- Mode: Local
+- Depth: <"quick" or "detailed">
+Read the full diff and commit messages. Produce a plain-English explanation.
+```
+
+Use `model: "sonnet"` for the agent launch.
+
+Wait for the agent to return the explanation. Present it to the user in full.
+
+### Post-Explanation Gate
+
+After presenting the explanation, use AskUserQuestion:
+- Question: "How would you like to proceed?"
+- Options:
+  - **Proceed to review** — "Continue to the automated review sweep"
+  - **Ask a question** — "I have a follow-up question about the intent"
+  - **Abort review** — "Stop here, don't run the review"
+
+#### If "Ask a question"
+
+The user will type their question via the "Other" option. Send the question to the intent-explainer agent via SendMessage (continuing its existing context with the full diff loaded). Present the agent's answer to the user.
+
+Re-prompt with the same Proceed/Ask/Abort options. Repeat this loop until the user selects "Proceed to review" or "Abort review".
+
+#### If "Abort review"
+
+Report: "Review aborted after intent explanation phase." Exit the command.
+
+#### If "Proceed to review"
+
+Continue to Phase 3.
+
+### If "Skip — proceed to review"
+
+Continue directly to Phase 3 without launching the intent-explainer agent.
+
 ## Phase 2: Automated Sweep
 
 Launch the `interactive-review:review-compiler` agent via the Task tool.
