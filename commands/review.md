@@ -6,10 +6,11 @@ allowed-tools: ["Bash", "Read", "Grep", "Glob", "Task", "ToolSearch"]
 
 # Interactive Review Command
 
-You are running the interactive-review command. This implements a structured PR review workflow with three stages:
-1. **Automated Sweep** — parallel review agents compile findings
-2. **Self-Verification** — you re-read actual code to confirm/retract each finding
-3. **Interactive Triage** — walk through each finding with the user for draft-preview-post decisions
+You are running the interactive-review command. This implements a structured PR review workflow with four stages:
+1. **PR Intent Explanation** — optionally understand the PR's purpose before reviewing
+2. **Automated Sweep** — parallel review agents compile findings
+3. **Self-Verification** — you re-read actual code to confirm/retract each finding
+4. **Interactive Triage** — walk through each finding with the user for draft-preview-post decisions
 
 ## Phase 1: Determine Review Mode
 
