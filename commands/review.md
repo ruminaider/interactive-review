@@ -104,7 +104,7 @@ Continue to Phase 3.
 
 Continue directly to Phase 3 without launching the intent-explainer agent.
 
-## Phase 2: Automated Sweep
+## Phase 3: Automated Sweep
 
 Launch the `interactive-review:review-compiler` agent via the Task tool.
 
@@ -144,7 +144,7 @@ If the review-compiler returns zero findings:
 2. List which agents were used
 3. Exit
 
-## Phase 3: Interactive Triage Loop
+## Phase 4: Interactive Triage Loop
 
 Process each finding in the order returned by review-compiler (severity-sorted: critical first).
 
@@ -154,7 +154,7 @@ Process each finding in the order returned by review-compiler (severity-sorted: 
 
 This is the most important step. Each finding MUST be independently verified by a fresh subagent before being presented to the user. Do NOT verify findings yourself — delegate to a subagent to avoid confirmation bias.
 
-**Parallel launch (start of Phase 3):**
+**Parallel launch (start of Phase 4):**
 At the beginning of the triage loop, launch ALL verification subagents in parallel using multiple Task tool calls in a single message. Use `subagent_type: "general-purpose"` with `model: "haiku"` for each. Run them in the background (`run_in_background: true`) so they execute concurrently.
 
 Each verification subagent receives this prompt:
@@ -312,7 +312,7 @@ Maintain running counts throughout the loop:
 - `retracted`: Number of findings retracted as false positives
 - `acknowledged`: Number of findings acknowledged (local mode)
 
-## Phase 4: Summary Report
+## Phase 5: Summary Report
 
 After all findings have been processed (or "Skip All Remaining" was selected), present a summary:
 
