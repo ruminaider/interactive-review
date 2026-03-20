@@ -1,6 +1,6 @@
 {
   "name": "interactive-review",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Interactive PR review with PR intent explanation, parallel agent sweep, self-verification, and triage loop. 2 agents, 1 command.",
   "author": {
     "name": "Albert Gwo",
