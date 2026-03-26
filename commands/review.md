@@ -148,6 +148,25 @@ If the review-compiler returns zero findings:
 
 Process each finding in the order returned by review-compiler (severity-sorted: critical first).
 
+#### Step 0: Prepare Verification Context (MANDATORY — DO NOT SKIP)
+
+Before launching any verification subagents, extract the actual source code for each finding from the correct branch. The local filesystem may be on a different branch than the PR. Verification agents that read from the wrong branch produce silently wrong results (false retractions).
+
+**For PR mode:**
+1. Determine the PR's head branch: `gh pr view <number> --json headRefName -q .headRefName`
+2. Fetch the PR branch: `git fetch origin <head_branch>`
+3. For each finding, extract the relevant code:
+   ```bash
+   git show origin/<head_branch>:<file_path> | sed -n '<start-20>,<end+20>p'
+   ```
+   Include ~20 lines of surrounding context beyond the finding's line range.
+4. Store the extracted code snippet alongside each finding for embedding in the verification prompt.
+
+**For Local mode:**
+No special preparation needed. The local filesystem IS the correct source. Use the Read tool to extract code for each finding.
+
+**On extraction failure (PR mode):** If `git show` fails for a specific finding (file deleted, path wrong, fetch failed), mark that finding as **"unable to verify"**. Do NOT launch a verification subagent for it. Present it to the user with the note: "Verification skipped: could not extract source code from PR branch `<head_branch>` for `<file_path>`." The user decides whether to post or skip without independent verification.
+
 ### For EACH Finding, Perform These Steps in Order:
 
 #### Step 1: Independent Verification via Subagent (MANDATORY — DO NOT SKIP)
@@ -155,11 +174,13 @@ Process each finding in the order returned by review-compiler (severity-sorted: 
 This is the most important step. Each finding MUST be independently verified by a fresh subagent before being presented to the user. Do NOT verify findings yourself — delegate to a subagent to avoid confirmation bias.
 
 **Parallel launch (start of Phase 4):**
-At the beginning of the triage loop, launch ALL verification subagents in parallel using multiple Task tool calls in a single message. Use `subagent_type: "general-purpose"` with `model: "haiku"` for each. Run them in the background (`run_in_background: true`) so they execute concurrently.
+At the beginning of the triage loop, launch ALL verification subagents in parallel using multiple Task tool calls in a single message. Use `subagent_type: "general-purpose"` with `model: "haiku"` for each. Run them in the background (`run_in_background: true`) so they execute concurrently. Only launch subagents for findings that have extracted code snippets (Step 0 succeeded).
 
 Each verification subagent receives this prompt:
+
+**PR mode prompt:**
 ```
-Verify this code review finding against the CURRENT state of the source code.
+Verify this code review finding against the source code from the PR branch.
 
 FINDING:
 - File: <file_path>
@@ -168,16 +189,36 @@ FINDING:
 - Detail: <detail>
 - Category: <category>
 
+SOURCE CODE FROM PR BRANCH (lines <context_start>-<context_end> of <file_path>):
+"""
+<paste the code snippet extracted in Step 0>
+"""
+
+CRITICAL: The code above was extracted from the PR branch (origin/<head_branch>).
+Your local filesystem may be on a DIFFERENT branch. Do NOT use the Read tool to
+read <file_path> — you will get the wrong code and produce a wrong verdict.
+Verify the finding ONLY against the code provided above.
+
+You MAY use Bash with `git show origin/<head_branch>:<path>` to read OTHER files
+from the PR branch (e.g., to check a type definition, constant value, or import
+target referenced by the finding). Do NOT use Read for files that were changed in
+the PR — always use `git show origin/<head_branch>:<path>` instead.
+
 INSTRUCTIONS:
-1. Read the file at the specified lines (include ~10 lines of surrounding context)
-2. For type/contract/API claims: Grep for the relevant definition and verify the claim
-3. For visual/design concerns: note "Unable to verify against design" unless Figma tools are available
-4. For findings whose validity depends on runtime or production state (e.g., "does this DB record/slug/config exist?", "is this seeded in production?", "does this external dependency exist at runtime?"):
+1. Analyze the provided code snippet to verify the finding's claims
+2. For type/contract/API claims: use `git show origin/<head_branch>:<path>` to
+   check the relevant definition on the PR branch
+3. For visual/design concerns: note "Unable to verify against design" unless
+   Figma tools are available
+4. For findings whose validity depends on runtime or production state (e.g.,
+   "does this DB record/slug/config exist?", "is this seeded in production?"):
    a. Use ToolSearch to find available database query tools (query: "database query postgres")
    b. If tools exist, query the production database to verify the claim directly
-   c. If no database tools are available, note "Unable to verify against production data — finding assumes the record/config does not exist"
-   d. When the finding's severity hinges entirely on whether external state exists, you MUST attempt this check before classifying. Do not leave it as an open question.
-5. Determine if the finding is accurate as of the CURRENT code
+   c. If no database tools are available, note "Unable to verify against
+      production data — finding assumes the record/config does not exist"
+   d. When the finding's severity hinges entirely on whether external state
+      exists, you MUST attempt this check before classifying.
+5. Determine if the finding is accurate as of the PR branch code
 
 RESPOND WITH EXACTLY ONE OF:
 - CONFIRMED: <explanation of why the finding is accurate>
@@ -185,10 +226,17 @@ RESPOND WITH EXACTLY ONE OF:
 - RETRACTED: <why this is a false positive — what the code actually does>
 ```
 
+**Local mode prompt:**
+Same structure, but:
+- Replace "PR branch" with "current branch"
+- Include the code snippet extracted via Read in Step 0
+- Replace `git show origin/<head_branch>:<path>` instructions with "Use the Read tool"
+- Omit the "Do NOT use the Read tool" warning
+
 **Sequential consumption (during triage):**
 Before presenting each finding, read the corresponding verification subagent's output. Use its verdict (CONFIRMED/REVISED/RETRACTED) and explanation in the finding presentation. If a verification subagent hasn't finished yet, wait for it.
 
-**If a verification subagent fails:** Fall back to reading the source code yourself for that finding only, and note "Verification subagent failed — verified manually" in the presentation.
+**If a verification subagent fails:** Fall back to reading the source code yourself for that finding only using `git show origin/<head_branch>:<path>` (PR mode) or Read (local mode), and note "Verification subagent failed — verified manually" in the presentation.
 
 #### Step 2: Present to User
 
